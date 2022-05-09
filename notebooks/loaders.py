@@ -13,11 +13,12 @@ from albumentations.pytorch.transforms import ToTensorV2
 
 
 class GemmaDataset(Dataset):
-    def __init__(self, csv, images_path, transform=None):
+    def __init__(self, csv, images_path, transform=None, get_item_with_index: bool = True):
         self.boxes = csv.copy()
         self.images = list(self.boxes.filename.unique())
         self.transforms = transform
         self.images_path = images_path
+        self.get_item_with_index: bool = get_item_with_index
 
     def __len__(self):
         return len(self.images)
@@ -87,7 +88,10 @@ class GemmaDataset(Dataset):
         else:
             img = transforms.ToTensor()(img)
 
-        return img, target, image_id
+        if self.get_item_with_index is True:
+            return img, target, image_id
+        else:
+            return img, target
 
 
 albumentaion_p = 0.5
