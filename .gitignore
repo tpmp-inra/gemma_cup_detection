@@ -3,3 +3,6 @@ data_in/
 .ipynb_checkpoints/
 .vscode/
 __pycache__
+models
+data_out
+demo
