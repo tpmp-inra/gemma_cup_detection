@@ -3,7 +3,6 @@ import numpy as np
 import cv2
 
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 
 import torch
 from torch.utils.data import Dataset
@@ -129,8 +128,10 @@ class GemmaDataset(Dataset):
                 target[self.get_boxes_key()] = torch.zeros((0, 4), dtype=torch.float32)
         else:
             img = transforms.ToTensor()(img)
-
-        return img, target, image_id if self.return_id is True else img, target
+        if self.return_id is True:
+            return img, target, image_id
+        else:
+            return img, target
 
     def test_image(self, filename: str, image_size):
         t = get_test_image_transform(image_size=image_size)
