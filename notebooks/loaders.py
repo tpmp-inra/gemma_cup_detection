@@ -23,13 +23,26 @@ def load_image(file_path):
 
 
 class GemmaDataset(Dataset):
-    def __init__(self, csv, images_path, transform=None, yxyx: bool = False):
+    def __init__(
+        self,
+        csv,
+        images_path,
+        transform=None,
+        yxyx: bool = False,
+        return_id: bool = False,
+        bboxes: bool = False,
+    ):
         self.boxes = csv.copy()
         self.images = list(self.boxes.filename.unique())
         self.transforms = transform
         self.images_path = images_path
-        self.width, self.height = transform[0].width, transform[0].height
+        if transform is not None:
+            self.width, self.height = transform[0].width, transform[0].height
+        else:
+            self.width, self.height = 0, 0
         self.yxyx = yxyx
+        self.return_id = return_id
+        self.bboxes = bboxes
 
     def __len__(self):
         return len(self.images)
@@ -50,8 +63,8 @@ class GemmaDataset(Dataset):
         return self[self.images.index(filename)]
 
     def draw_image_with_boxes(self, filename):
-        image, labels, _ = self[self.images.index(filename)]
-        boxes = labels["boxes"]
+        image, labels, *_ = self[self.images.index(filename)]
+        boxes = labels[self.get_boxes_key()]
         for box in boxes:
             box_indexes = [1, 0, 3, 2] if self.yxyx is True else [0, 1, 2, 3]
             image = cv2.rectangle(
@@ -63,6 +76,9 @@ class GemmaDataset(Dataset):
                 2,
             )
         return image
+
+    def get_boxes_key(self):
+        return "bboxes" if self.bboxes is True else "boxes"
 
     def __getitem__(self, index):
         num_box, boxes = self.load_boxes(
@@ -79,7 +95,7 @@ class GemmaDataset(Dataset):
         image_id = torch.tensor([index])
         labels = torch.ones((num_box,), dtype=torch.int64)
         target = {
-            "boxes": boxes,
+            self.get_boxes_key(): boxes,
             "labels": labels,
             "image_id": image_id,
             "area": torch.as_tensor(
@@ -92,7 +108,11 @@ class GemmaDataset(Dataset):
         }
 
         if self.transforms is not None:
-            sample = {"image": img, "bboxes": target["boxes"], "labels": labels}
+            sample = {
+                "image": img,
+                "bboxes": target[self.get_boxes_key()],
+                "labels": labels,
+            }
             sample = self.transforms(**sample)
             img = sample["image"]
             if num_box > 0:
@@ -102,13 +122,15 @@ class GemmaDataset(Dataset):
                 if self.yxyx is True:
                     boxes[:, [0, 1, 2, 3]] = boxes[:, [1, 0, 3, 2]]
                 # Convert to tensor
-                target["boxes"] = torch.as_tensor(boxes, dtype=torch.float32)
+                target[self.get_boxes_key()] = torch.as_tensor(
+                    boxes, dtype=torch.float32
+                )
             else:
-                target["boxes"] = torch.zeros((0, 4), dtype=torch.float32)
+                target[self.get_boxes_key()] = torch.zeros((0, 4), dtype=torch.float32)
         else:
             img = transforms.ToTensor()(img)
 
-        return img, target, image_id
+        return img, target, image_id if self.return_id is True else img, target
 
     def test_image(self, filename: str, image_size):
         t = get_test_image_transform(image_size=image_size)
